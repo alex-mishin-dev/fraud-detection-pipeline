@@ -12,32 +12,40 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   airflow-webserver:
-    image: apache/airflow:2.9.2
+    build: .
     container_name: airflow_webserver
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU= # Ключ для шифрования
+      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU=
       - AIRFLOW_UID=${AIRFLOW_UID}
       - AIRFLOW_GID=${AIRFLOW_GID}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
+      - ./src:/opt/airflow/src
     ports:
       - "8088:8080"
     command: webserver
 
   airflow-scheduler:
-    image: apache/airflow:2.9.2
+    build: .
     container_name: airflow_scheduler
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -49,13 +57,15 @@ services:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
+      - ./src:/opt/airflow/src
     command: scheduler
 
   airflow-init:
-    image: apache/airflow:2.9.2
+    build: .
     container_name: airflow_init
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -67,9 +77,9 @@ services:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
+      - ./src:/opt/airflow/src
     command: >
       bash -c "airflow db init && airflow users create --username admin --password admin --firstname Anonymous --lastname User --role Admin --email admin@example.com"
-
 
 volumes:
   postgres_data:
