@@ -5,13 +5,71 @@ services:
     image: postgres:13
     container_name: fraud_db
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=fraud_db
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  airflow-webserver:
+    image: apache/airflow:2.9.2
+    container_name: airflow_webserver
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU= # Ключ для шифрования
+      - AIRFLOW_UID=${AIRFLOW_UID}
+      - AIRFLOW_GID=${AIRFLOW_GID}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    ports:
+      - "8088:8080"
+    command: webserver
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.2
+    container_name: airflow_scheduler
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU=
+      - AIRFLOW_UID=${AIRFLOW_UID}
+      - AIRFLOW_GID=${AIRFLOW_GID}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    command: scheduler
+
+  airflow-init:
+    image: apache/airflow:2.9.2
+    container_name: airflow_init
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU=
+      - AIRFLOW_UID=${AIRFLOW_UID}
+      - AIRFLOW_GID=${AIRFLOW_GID}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    command: >
+      bash -c "airflow db init && airflow users create --username admin --password admin --firstname Anonymous --lastname User --role Admin --email admin@example.com"
+
 
 volumes:
   postgres_data:
