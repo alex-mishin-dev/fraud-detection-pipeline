@@ -2,11 +2,12 @@ import pandas as pd
 from faker import Faker
 import random
 from datetime import datetime
+import os
 
-# Создаем экземпляр Faker для генерации данных
+# Создаем экземпляр Faker для генерации фейковых данных
 fake = Faker()
 
-def generate_transactions(num_transactions: int = 5) -> pd.DataFrame:
+def generate_transactions(num_transactions: int = 10) -> pd.DataFrame:
     """
     Генерирует DataFrame с фейковыми банковскими транзакциями.
 
@@ -30,8 +31,21 @@ def generate_transactions(num_transactions: int = 5) -> pd.DataFrame:
     df = pd.DataFrame(data)
     return df
 
+# Этот блок выполнится только тогда, когда мы запускаем этот файл напрямую
 if __name__ == "__main__":
-    transactions_df = generate_transactions(10)
-    print("Сгенерированные транзакции:")
-    print(transactions_df)
+    
+    # Определяем путь для сохранения данных ВНУТРИ контейнера
+    output_dir = "/opt/airflow/data"
+    output_path = os.path.join(output_dir, "transactions.csv")
+
+    # Создаем папку data внутри контейнера, если ее нет
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Генерируем данные
+    transactions_df = generate_transactions(15)
+    
+    # Сохраняем DataFrame в CSV-файл
+    transactions_df.to_csv(output_path, index=False)
+    
+    print(f"Сгенерированные транзакции сохранены в {output_path}")
 
