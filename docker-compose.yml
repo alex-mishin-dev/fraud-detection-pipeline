@@ -84,7 +84,6 @@ services:
     command: >
       bash -c "airflow db init && airflow users create --username admin --password admin --firstname Anonymous --lastname User --role Admin --email admin@example.com"
 
-
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
@@ -106,6 +105,35 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  spark-master:
+    image: jupyter/all-spark-notebook:spark-3.5.0
+    container_name: spark-master
+    ports:
+      - "8081:8080" # Spark Master Web UI 
+      - "7077:7077"
+      - "8888:8888" # Jupyter Notebook
+    volumes:
+      - ./src:/home/jovyan/work/src
+    
+    
+
+  spark-worker:
+    image: jupyter/all-spark-notebook:spark-3.5.0
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    volumes:
+      - ./src:/home/jovyan/work/src
+    
+    command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+
+
+
 
 volumes:
   postgres_data:
+  spark_ivy_cache: 
+
+
