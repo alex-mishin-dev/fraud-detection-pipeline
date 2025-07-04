@@ -1,4 +1,6 @@
-# Makefile для управления проектом fraud-detection-pipeline
+SHELL := /bin/bash
+
+# --- Базовые команды ---
 
 # Запуск всех сервисов в фоновом режиме
 up:
@@ -12,9 +14,17 @@ down:
 clean:
 	docker compose down -v
 
+# --- Команды для разработки ---
+
+# Пересборка и запуск всех сервисов 
+rebuild:
+	docker compose up -d --build
+
 # Просмотр логов конкретного сервиса (например, make logs service=spark-master)
 logs:
 	docker logs $(service)
+
+# --- Команды для пайплайна ---
 
 # Инициализация: создание Kafka топика
 init-topic:
@@ -33,7 +43,6 @@ run-spark-consumer:
 	@docker exec -it spark-master /usr/local/spark/bin/spark-submit \
 		--driver-memory 2g \
 		--executor-memory 2g \
-		--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
 		/home/jovyan/work/src/spark_consumer.py
 
-.PHONY: up down clean logs init-topic run-producer run-spark-consumer
+.PHONY: up down clean rebuild logs init-topic run-producer run-spark-consumer
