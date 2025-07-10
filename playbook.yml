@@ -1,0 +1,28 @@
+---
+- name: Deploy Fraud Detection Pipeline
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Clean previous environment
+      community.docker.docker_compose_v2:
+        project_src: .
+        state: absent
+        remove_volumes: true
+      ignore_errors: true
+
+    - name: Rebuild and start all services
+      community.docker.docker_compose_v2:
+        project_src: .
+        state: present
+        build: "always" # <--- НАШ ФИНАЛЬНЫЙ ФИКС
+
+    - name: Wait for Kafka to stabilize
+      pause:
+        seconds: 30
+      run_once: true
+
+    - name: Create Kafka topic 'transactions'
+      command: docker exec kafka kafka-topics --create --if-not-exists --topic transactions --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
+      register: topic_creation_result
+      changed_when: "'Created topic' in topic_creation_result.stdout"
+      failed_when: topic_creation_result.rc != 0 and 'already exists' not in topic_creation_result.stderr

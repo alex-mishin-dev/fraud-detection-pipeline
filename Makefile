@@ -4,6 +4,10 @@ SHELL := /bin/bash
 
 # --- Базовые команды ---
 
+# Полное развертывание всей инфраструктуры с помощью Ansible
+deploy:
+	ansible-playbook playbook.yml
+
 # Запуск всех сервисов в фоновом режиме
 up:
 	docker compose up -d
@@ -11,16 +15,6 @@ up:
 # Остановка всех сервисов
 down:
 	docker compose down
-
-# Полная очистка: остановка, удаление контейнеров и всех данных (volumes)
-clean:
-	docker compose down -v
-
-# --- Команды для разработки ---
-
-# Пересборка и запуск всех сервисов 
-rebuild:
-	docker compose up -d --build
 
 # Просмотр логов конкретного сервиса (например, make logs service=spark-master)
 logs:
@@ -52,6 +46,9 @@ db-shell:
 	@echo "Connecting to PostgreSQL shell..."
 	@docker exec -it fraud_db psql -U airflow
 
-# Не забудь добавить новую команду в .PHONY
-.PHONY: up down clean rebuild logs init-topic run-producer run-spark-consumer db-shell
+# Открытие веб-интерфейса Metabase
+open-bi:
+	@echo "Opening Metabase BI tool at http://localhost:3000"
+	@python3 -m webbrowser http://localhost:3000
 
+.PHONY: up down clean rebuild logs init-topic run-producer run-spark-consumer db-shell
