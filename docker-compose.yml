@@ -16,72 +16,55 @@ services:
       timeout: 5s
       retries: 5
 
-  airflow-webserver:
-    build: .
-    container_name: airflow_webserver
+    # Это базовый набор переменных для ВСЕХ сервисов Airflow
+  x-airflow-common: &airflow-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Эта переменная теперь берется из .env файла
+        DOCKER_GID: ${DOCKER_GID}
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: "FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU="
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "super-secret-key-that-is-the-same-for-all-components"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./Makefile:/opt/airflow/Makefile
+      # --- ВОТ ОН, НАШ ЗОЛОТОЙ КЛЮЧ ---
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  airflow-init:
+    <<: *airflow-common # Используем общий набор переменных
+    container_name: airflow_init
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU=
-      - AIRFLOW_UID=${AIRFLOW_UID}
-      - AIRFLOW_GID=${AIRFLOW_GID}
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./src:/opt/airflow/src
-      - ./data:/opt/airflow/data
+    command: >
+      bash -c "airflow db init && airflow users create --username admin --password admin --firstname Anonymous --lastname User --role Admin --email admin@example.com"
+
+  airflow-webserver:
+    <<: *airflow-common # Используем общий набор переменных
+    container_name: airflow_webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     ports:
       - "8088:8080"
     command: webserver
 
   airflow-scheduler:
-    build: .
+    <<: *airflow-common # Используем общий набор переменных
     container_name: airflow_scheduler
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU=
-      - AIRFLOW_UID=${AIRFLOW_UID}
-      - AIRFLOW_GID=${AIRFLOW_GID}
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./src:/opt/airflow/src
-      - ./data:/opt/airflow/data
+      airflow-init:
+        condition: service_completed_successfully
     command: scheduler
 
-  airflow-init:
-    build: .
-    container_name: airflow_init
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__CORE__FERNET_KEY=FBACrK2rq1gardY_6I9a4k2vJcptd_b64W2-4Ffn-aU=
-      - AIRFLOW_UID=${AIRFLOW_UID}
-      - AIRFLOW_GID=${AIRFLOW_GID}
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./src:/opt/airflow/src
-      - ./data:/opt/airflow/data
-    command: >
-      bash -c "airflow db init && airflow users create --username admin --password admin --firstname Anonymous --lastname User --role Admin --email admin@example.com"
-
+  # ... остальные сервисы без изменений ...
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
@@ -103,7 +86,6 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
 
   spark-master:
     build:
@@ -111,13 +93,11 @@ services:
       dockerfile: Dockerfile.spark
     container_name: spark-master
     ports:
-      - "8081:8080" # Spark Master Web UI 
+      - "8081:8080"
       - "7077:7077"
-      - "8888:8888" # Jupyter Notebook
+      - "8888:8888"
     volumes:
       - ./src:/home/jovyan/work/src
-    
-    
 
   spark-worker:
     build:
@@ -126,16 +106,17 @@ services:
     container_name: spark-worker
     depends_on:
       - spark-master
+    command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     volumes:
       - ./src:/home/jovyan/work/src
-    
-    command: /usr/local/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
 
-
-
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:
-  spark_ivy_cache: 
-
-

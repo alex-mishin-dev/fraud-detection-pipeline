@@ -1,3 +1,5 @@
+export DOCKER_GID := $(shell getent group docker | cut -d: -f3)
+
 SHELL := /bin/bash
 
 # --- Базовые команды ---
@@ -40,9 +42,16 @@ run-producer:
 # Запуск Spark-джобы (консьюмера)
 run-spark-consumer:
 	@echo "Submitting Spark job..."
-	@docker exec -it spark-master /usr/local/spark/bin/spark-submit \
+	@docker exec spark-master /usr/local/spark/bin/spark-submit \
 		--driver-memory 2g \
 		--executor-memory 2g \
 		/home/jovyan/work/src/spark_consumer.py
 
-.PHONY: up down clean rebuild logs init-topic run-producer run-spark-consumer
+# Подключение к интерактивной сессии PostgreSQL. \dt SELECT * FROM fraudulent_transactions LIMIT 10; \q
+db-shell:
+	@echo "Connecting to PostgreSQL shell..."
+	@docker exec -it fraud_db psql -U airflow
+
+# Не забудь добавить новую команду в .PHONY
+.PHONY: up down clean rebuild logs init-topic run-producer run-spark-consumer db-shell
+
